@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cart - Food By Bella</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .cart-item {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cart-item img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      margin-right: 15px;
+    }
+
+    .item-details {
+      flex-grow: 1;
+    }
+
+    .quantity-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    button {
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    .total {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: right;
+      margin-top: 20px;
+    }
+
+    .clear-cart {
+      background-color: crimson;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Your Cart</h1>
+  <div id="cart-container"></div>
+  <div class="total" id="cart-total">Total: ₦0</div>
+  <button class="clear-cart" id="clear-cart">Clear Cart</button>
+  <div style="text-align: right; margin-top: 20px;">
+  <a href="checkout.html">
+    <button style="padding: 10px 20px; font-size: 16px; background-color: green; color: white; border: none; border-radius: 5px; cursor: pointer;">
+      Proceed to Checkout
+    </button>
+  </a>
+</div>
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+   const firebaseConfig = {
+    apiKey: "AIzaSyAM6Aw5rI5ysxlJ8osuozlV1OdVy3QqJJ4",
+    authDomain: "my-restaurant-app-8c40b.firebaseapp.com",
+    projectId: "my-restaurant-app-8c40b",
+    storageBucket: "my-restaurant-app-8c40b.firebasestorage.app",
+    messagingSenderId: "744991278655",
+    appId: "1:744991278655:web:a3c4975525c5f9d57f5a8a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUid = null;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("You must log in first!");
+      window.location.href = "login.html";
+      return;
+    }
+    currentUid = user.uid;
+    displayCart();
+  });
+
+  async function displayCart() {
+    const cartRef = doc(db, "carts", currentUid);
+    const cartSnap = await getDoc(cartRef);
+
+    const container = document.getElementById("cart-container");
+    const totalElement = document.getElementById("cart-total");
+    container.innerHTML = "";
+    let total = 0;
+
+    if (!cartSnap.exists()) {
+      container.innerHTML = "<p>Your cart is empty.</p>";
+      totalElement.textContent = "Total: ₦0";
+      return;
+    }
+    let cart = (cartSnap.data().items || []).filter(
+      (item) => item && typeof item === "object" && item.name && item.price
+    );
+
+    if (cart.length === 0) {
+      container.innerHTML = "<p>Your cart is empty.</p>";
+      totalElement.textContent = "Total: ₦0";
+      return;
+    }
+
+    cart.forEach((item, index) => {
+      const price = parseInt(item.price.toString().replace(/[^0-9]/g, "")) || 0;
+      const itemTotal = price * item.quantity;
+      total += itemTotal;
+
+      const cartItem = document.createElement("div");
+      cartItem.classList.add("cart-item");
+
+      cartItem.innerHTML = `
+        <img src="${item.image}" alt="${item.name}">
+        <div class="item-details">
+          <p><strong>${item.name}</strong></p>
+          <p>₦${price.toLocaleString()} x ${item.quantity} = ₦${itemTotal.toLocaleString()}</p>
+        </div>
+        <div class="quantity-controls">
+          <button onclick="updateQuantity(${index}, -1)">➖</button>
+          <span>${item.quantity}</span>
+          <button onclick="updateQuantity(${index}, 1)">➕</button>
+        </div>
+      `;
+      container.appendChild(cartItem);
+    });
+
+    totalElement.textContent = `Total: ₦${total.toLocaleString()}`;
+  }
+
+  window.updateQuantity = async function (index, change) {
+    const cartRef = doc(db, "carts", currentUid);
+    const cartSnap = await getDoc(cartRef);
+    if (!cartSnap.exists()) return;
+
+    let cart = (cartSnap.data().items || []).filter(
+      (item) => item && typeof item === "object" && item.name && item.price
+    );
+
+    cart[index].quantity += change;
+    if (cart[index].quantity <= 0) {
+      cart.splice(index, 1);
+    }
+
+    await setDoc(cartRef, { items: cart });
+    displayCart();
+  };
+
+  document.getElementById("clear-cart").addEventListener("click", async () => {
+    if (confirm("Clear your cart?")) {
+      await setDoc(doc(db, "carts", currentUid), { items: [] });
+      displayCart();
+    }
+  });
+</script>
+
+</body>
+</html>

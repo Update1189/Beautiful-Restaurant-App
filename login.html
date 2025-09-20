@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - Food By Bella</title>
+  <style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #fff0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+
+  .login-container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    width: 300px;
+  }
+
+  h2 {
+    text-align: center;
+    color: #b30000;
+  }
+
+  .input-group {
+    position: relative;
+    margin: 10px 0;
+  }
+
+  input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #fff; 
+    color: #000;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+    -webkit-text-fill-color: #000 !important;
+    caret-color: #000 !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .toggle-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none !important;
+    border: none !important;
+    cursor: pointer;
+    font-size: 14px;
+    color: #b30000;
+    padding: 0;
+  }
+  .toggle-btn:hover,
+  .toggle-btn:focus {
+    background: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  button:not(.toggle-btn) {
+    width: 100%;
+    padding: 10px;
+    background-color: gold;
+    color: #b30000;
+    font-weight: bold;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:not(.toggle-btn):disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  button:not(.toggle-btn):hover:enabled {
+    background-color: #e6c200;
+  }
+
+  .signup-link, .forgot-password {
+    text-align: center;
+    margin-top: 10px;
+  }
+  .signup-link a, .forgot-password a {
+    color: #b30000;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  #resendEmailBtn {
+    margin-top: 10px;
+    display: none;
+    width: 100%;
+    padding: 10px;
+    background: #eee;
+    color: #b30000;
+    font-weight: bold;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #resendEmailBtn:hover { background:#eaeaea; }
+
+  #loadingOverlay {
+    position: fixed;
+    inset: 0;
+    display: none;                
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+    flex-direction: column;
+  }
+  #loadingOverlay.is-visible { display: flex; }
+  #loadingOverlay .spinner {
+    width: 42px; height: 42px;
+    border: 4px solid #fff3;
+    border-top-color: gold;
+    border-right-color: #b30000;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  #loadingOverlay .message {
+    color: #fff;
+    font: 600 15px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  body.no-scroll { overflow: hidden; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Login</h2>
+    <form id="loginForm" autocomplete="off">
+      <div class="input-group">
+        <input type="email" id="email" placeholder="Email" required autocomplete="email">
+      </div>
+      <div class="input-group">
+        <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
+        <button type="button" class="toggle-btn" id="togglePassword">👁</button>
+      </div>
+      <button type="submit" id="loginBtn" disabled>Login</button>
+    </form>
+
+    <button id="resendEmailBtn">Resend Verification Email</button>
+
+    <div class="forgot-password">
+      <p><a id="forgotPasswordLink">Forgot Password?</a></p>
+    </div>
+
+    <div class="signup-link">
+      <p>Don't have an account? <a href="signup.html">Sign up</a></p>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="message">Loading, please wait…</p>
+  </div>
+
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAM6Aw5rI5ysxlJ8osuozlV1OdVy3QqJJ4",
+    authDomain: "my-restaurant-app-8c40b.firebaseapp.com",
+    projectId: "my-restaurant-app-8c40b",
+    storageBucket: "my-restaurant-app-8c40b.appspot.com", 
+    messagingSenderId: "744991278655",
+    appId: "1:744991278655:web:a3c4975525c5f9d57f5a8a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  function showLoader(message = 'Loading, please wait…') {
+    const overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
+    overlay.querySelector('.message').textContent = message;
+    overlay.classList.add('is-visible');
+    document.body.classList.add('no-scroll');
+  }
+  function hideLoader() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (!overlay) return;
+    overlay.classList.remove('is-visible');
+    document.body.classList.remove('no-scroll');
+  }
+
+  const loginBtn = document.getElementById("loginBtn");
+  const emailInput = document.getElementById("email");
+  const passwordInput = document.getElementById("password");
+  const togglePasswordBtn = document.getElementById("togglePassword");
+  const resendBtn = document.getElementById("resendEmailBtn");
+  const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+  let lastUnverifiedUser = null;
+
+  togglePasswordBtn.addEventListener("click", () => {
+    if (passwordInput.type === "password") {
+      passwordInput.type = "text";
+      togglePasswordBtn.textContent = "🙈";
+    } else {
+      passwordInput.type = "password";
+      togglePasswordBtn.textContent = "👁";
+    }
+    passwordInput.focus();
+  });
+
+  function validateForm() {
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value.trim());
+    const passwordValid = passwordInput.value.trim().length > 0;
+    loginBtn.disabled = !(emailValid && passwordValid);
+  }
+  emailInput.addEventListener("input", validateForm);
+  passwordInput.addEventListener("input", validateForm);
+
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
+
+    showLoader('Signing you in…');
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      if (!user.emailVerified) {
+        hideLoader();
+        alert("❌ Please verify your Gmail first. Check your inbox (and spam folder).");
+        lastUnverifiedUser = user;
+        resendBtn.style.display = "block";
+        await signOut(auth);
+        return;
+      }
+
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        hideLoader();
+        alert("User profile not found in database!");
+        return;
+      }
+
+      const userData = userSnap.data();
+
+      sessionStorage.setItem("currentUser", JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        username: userData.username,
+        role: userData.role
+      }));
+
+      hideLoader();
+      if (userData.role === "admin") {
+        window.location.href = "admin.html";
+      } else {
+        window.location.href = "dashboard.html";
+      }
+
+    } catch (error) {
+      hideLoader();
+      alert("Login failed: " + error.message);
+    }
+  });
+
+  resendBtn.addEventListener("click", async () => {
+    if (lastUnverifiedUser) {
+      showLoader('Resending verification email…');
+      try {
+        await sendEmailVerification(lastUnverifiedUser);
+        alert("📧 Verification email sent again! Please check your inbox.");
+      } catch (err) {
+        alert("Failed to resend verification email: " + err.message);
+      } finally {
+        hideLoader();
+      }
+    } else {
+      alert("Please try logging in first before resending the email.");
+    }
+  });
+
+  forgotPasswordLink.addEventListener("click", async () => {
+    const email = emailInput.value.trim();
+    if (!email) {
+      alert("Please enter your email first, then click 'Forgot Password?'!");
+      return;
+    }
+    showLoader('Sending password reset email…');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      alert("📧 Password reset email sent! Please check your inbox.");
+    } catch (error) {
+      alert("Error sending reset email: " + error.message);
+    } finally {
+      hideLoader();
+    }
+  });
+</script>
+
+</body>
+</html>

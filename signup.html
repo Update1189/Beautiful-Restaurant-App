@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign Up - Food By Bella</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #fff0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .signup-container {
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      width: 320px;
+    }
+
+    h2 {
+      text-align: center;
+      color: #b30000;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: gold;
+      color: #b30000;
+      font-weight: bold;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    button:hover:enabled {
+      background-color: #e6c200;
+    }
+
+    .login-link {
+      text-align: center;
+      margin-top: 10px;
+    }
+
+    .login-link a {
+      color: #b30000;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    #password-strength {
+      display: none;
+    }
+
+    #strength-bar {
+      height: 6px;
+      width: 0;
+      background: red;
+      transition: width 0.3s, background 0.3s;
+      margin-bottom: 8px;
+    }
+
+    #password-strength ul {
+      list-style: none;
+      padding: 0;
+      font-size: 12px;
+    }
+
+    #password-strength li.valid {
+      color: green;
+    }
+
+    #password-strength li.invalid {
+      color: red;
+    }
+
+    
+    .input-wrapper {
+      position: relative;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      font-size: 14px;
+      color: #b30000;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="signup-container">
+    <h2>Sign Up</h2>
+    <form id="signupForm">
+      <input type="text" id="username" placeholder="Username" required>
+      <input type="email" id="email" placeholder="Email" required>
+
+      <div class="input-wrapper">
+        <input type="password" id="password" placeholder="Password" required>
+        <span class="toggle-password" onclick="toggleVisibility('password', this)">👁</span>
+      </div>
+
+      <div id="password-strength">
+        <div id="strength-bar"></div>
+        <ul>
+          <li id="length" class="invalid">❌ At least 8 characters</li>
+          <li id="lower" class="invalid">❌ Lowercase letter</li>
+          <li id="upper" class="invalid">❌ Uppercase letter</li>
+          <li id="number" class="invalid">❌ Number</li>
+          <li id="special" class="invalid">❌ Special character</li>
+        </ul>
+      </div>
+
+      <div class="input-wrapper">
+        <input type="password" id="confirmPassword" placeholder="Confirm Password" required>
+        <span class="toggle-password" onclick="toggleVisibility('confirmPassword', this)">👁</span>
+      </div>
+
+      <div class="form-group input-wrapper">
+        <label for="adminCode">Admin Secret Code (optional)</label>
+        <input type="password" id="adminCode" placeholder="Leave blank if customer">
+        <span class="toggle-password" onclick="toggleVisibility('adminCode', this)">👁</span>
+      </div>
+
+      <button type="submit" id="signupBtn" disabled>Sign Up</button>
+    </form>
+
+    <div class="login-link">
+      <p>Already have an account? <a href="login.html">Login</a></p>
+    </div>
+  </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  sendEmailVerification, 
+  signOut 
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAM6Aw5rI5ysxlJ8osuozlV1OdVy3QqJJ4",
+  authDomain: "my-restaurant-app-8c40b.firebaseapp.com",
+  projectId: "my-restaurant-app-8c40b",
+  storageBucket: "my-restaurant-app-8c40b.appspot.com",
+  messagingSenderId: "744991278655",
+  appId: "1:744991278655:web:a3c4975525c5f9d57f5a8a"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+window.toggleVisibility = function(id, el) {
+  const input = document.getElementById(id);
+  if (input.type === "password") {
+    input.type = "text";
+    el.textContent = "👁‍🗨";
+  } else {
+    input.type = "password";
+    el.textContent = "👁";
+  }
+};
+
+const passwordInput = document.getElementById("password");
+const signupBtn = document.getElementById("signupBtn");
+const strengthBar = document.getElementById("strength-bar");
+const checks = {
+  length: document.getElementById("length"),
+  lower: document.getElementById("lower"),
+  upper: document.getElementById("upper"),
+  number: document.getElementById("number"),
+  special: document.getElementById("special"),
+};
+
+passwordInput.addEventListener("input", () => {
+  const value = passwordInput.value;
+
+  const strengthBox = document.getElementById("password-strength");
+  strengthBox.style.display = value.length > 0 ? "block" : "none";
+
+  let strength = 0;
+
+  if (value.length >= 8) { checks.length.className = "valid"; checks.length.textContent = "✅ At least 8 characters"; strength++; }
+  else { checks.length.className = "invalid"; checks.length.textContent = "❌ At least 8 characters"; }
+
+  if (/[a-z]/.test(value)) { checks.lower.className = "valid"; checks.lower.textContent = "✅ Lowercase letter"; strength++; }
+  else { checks.lower.className = "invalid"; checks.lower.textContent = "❌ Lowercase letter"; }
+
+  if (/[A-Z]/.test(value)) { checks.upper.className = "valid"; checks.upper.textContent = "✅ Uppercase letter"; strength++; }
+  else { checks.upper.className = "invalid"; checks.upper.textContent = "❌ Uppercase letter"; }
+
+  if (/\d/.test(value)) { checks.number.className = "valid"; checks.number.textContent = "✅ Number"; strength++; }
+  else { checks.number.className = "invalid"; checks.number.textContent = "❌ Number"; }
+
+  if (/[@$!%*?&]/.test(value)) { checks.special.className = "valid"; checks.special.textContent = "✅ Special character"; strength++; }
+  else { checks.special.className = "invalid"; checks.special.textContent = "❌ Special character"; }
+
+  const percent = (strength / 5) * 100;
+  strengthBar.style.width = percent + "%";
+  strengthBar.style.background = percent < 40 ? "red" : percent < 80 ? "orange" : "green";
+
+  signupBtn.disabled = strength < 5;
+});
+
+document.getElementById("signupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const username = document.getElementById("username").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+  const adminCode = document.getElementById("adminCode").value.trim();
+  let role = "customer";
+
+  if (adminCode === "IREMIDE") {
+    role = "admin";
+  }
+
+  if (password !== confirmPassword) {
+    alert("❌ Passwords do not match!");
+    return;
+  }
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    await setDoc(doc(db, "users", user.uid), {
+      username,
+      email,
+      role,
+      createdAt: new Date()
+    });
+
+    await sendEmailVerification(user);
+
+    alert("✅ Account created! A verification email has been sent to " + email + ". Please verify before logging in.");
+
+    await signOut(auth);
+    window.location.href = "login.html";
+
+  } catch (error) {
+    console.error("Signup error:", error);
+    alert("❌ " + error.message);
+  }
+});
+</script>
+
+</body>
+</html>

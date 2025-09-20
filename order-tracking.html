@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Tracking - Food By Bella</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #f9f9f9;
+      padding: 20px;
+    }
+
+    header {
+      background-color: #b30000;
+      color: white;
+      padding: 15px;
+      text-align: center;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+
+    .order-card {
+      background: white;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #b30000;
+    }
+
+    .timeline {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+    }
+
+    .step {
+      text-align: center;
+      flex: 1;
+      position: relative;
+    }
+
+    .step::before {
+      content: '';
+      position: absolute;
+      top: 12px;
+      left: -50%;
+      width: 100%;
+      height: 4px;
+      background: #ddd;
+      z-index: -1;
+    }
+
+    .step:first-child::before {
+      display: none;
+    }
+
+    .circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      margin: 0 auto 8px;
+      background: #ddd;
+      line-height: 24px;
+      color: white;
+      font-size: 12px;
+    }
+
+    .active .circle {
+      background: #b30000;
+    }
+
+    .completed .circle {
+      background: green;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  Food By Bella - Order Tracking
+</header>
+
+<div id="ordersContainer">
+  <p>Loading your orders...</p>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, collection, query, where, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAM6Aw5rI5ysxlJ8osuozlV1OdVy3QqJJ4",
+    authDomain: "my-restaurant-app-8c40b.firebaseapp.com",
+    projectId: "my-restaurant-app-8c40b",
+    storageBucket: "my-restaurant-app-8c40b.firebasestorage.app",
+    messagingSenderId: "744991278655",
+    appId: "1:744991278655:web:a3c4975525c5f9d57f5a8a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const ordersContainer = document.getElementById("ordersContainer");
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      alert("Please login to view your orders.");
+      window.location.href = "login.html";
+      return;
+    }
+
+    const q = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+
+    onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        ordersContainer.innerHTML = "<p>You have no orders yet.</p>";
+        return;
+      }
+
+      ordersContainer.innerHTML = "";
+      snapshot.forEach(docSnap => {
+        const order = docSnap.data();
+
+    
+        const steps = ["pending", "confirmed", "cooking", "out for delivery", "delivered"];
+        const currentStepIndex = steps.indexOf(order.status);
+
+        let timelineHTML = `<div class="timeline">`;
+        steps.forEach((step, index) => {
+          let stepClass = "";
+          if (index < currentStepIndex) stepClass = "completed";
+          else if (index === currentStepIndex) stepClass = "active";
+
+          timelineHTML += `
+            <div class="step ${stepClass}">
+              <div class="circle">${index + 1}</div>
+              <small>${step}</small>
+            </div>
+          `;
+        });
+        timelineHTML += `</div>`;
+        ordersContainer.innerHTML += `
+          <div class="order-card">
+            <h2>Order #${docSnap.id}</h2>
+            <p><strong>Items:</strong> ${(order.items || []).map(i => `${i.name} (x${i.quantity})`).join(", ")}</p>
+            <p><strong>Total:</strong> ₦${(order.total || 0).toLocaleString()}</p>
+            <p><strong>Address:</strong> ${order.address || "No Address"}</p>
+            <p><strong>Payment:</strong> ${order.paymentStatus || "unpaid"}</p>
+            <p><strong>Current Status:</strong> ${order.status || "pending"}</p>
+            ${timelineHTML}
+          </div>
+        `;
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

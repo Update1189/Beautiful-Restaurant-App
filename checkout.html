@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Checkout - Food By Bella</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background-color: #f7f7f7;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .cart-items {
+      margin-bottom: 30px;
+    }
+    .cart-item {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    .cart-item img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 5px;
+      margin-right: 10px;
+    }
+    .cart-details {
+      flex-grow: 1;
+    }
+    .total {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: right;
+      margin-bottom: 20px;
+    }
+    form input, form textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    form button {
+      padding: 12px;
+      background-color: green;
+      color: white;
+      font-weight: bold;
+      border: none;
+      width: 100%;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    form button:hover {
+      background-color: darkgreen;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Checkout</h1>
+
+  <div class="cart-items" id="checkoutItems"></div>
+  <div class="total" id="totalPrice">Total: ₦0</div>
+
+  <form id="checkoutForm">
+    <input type="text" id="fullName" placeholder="Full Name" required>
+    <input type="text" id="address" placeholder="Delivery Address" required>
+    <input type="tel" id="phone" placeholder="Phone Number" required>
+    <textarea id="note" rows="3" placeholder="Additional Notes (optional)"></textarea>
+    <button type="submit">Place Order</button>
+  </form>
+
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAM6Aw5rI5ysxlJ8osuozlV1OdVy3QqJJ4",
+    authDomain: "my-restaurant-app-8c40b.firebaseapp.com",
+    projectId: "my-restaurant-app-8c40b",
+    storageBucket: "my-restaurant-app-8c40b.firebasestorage.app",
+    messagingSenderId: "744991278655",
+    appId: "1:744991278655:web:a3c4975525c5f9d57f5a8a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let currentUser = null;
+  let cart = [];
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      alert("You must log in first!");
+      window.location.href = "login.html";
+      return;
+    }
+
+    currentUser = user;
+    await loadCart(); 
+  });
+  async function loadCart() {
+    const cartRef = doc(db, "carts", currentUser.uid);
+    const cartSnap = await getDoc(cartRef);
+
+    if (cartSnap.exists() && Array.isArray(cartSnap.data().items)) {
+      cart = cartSnap.data().items;
+    } else {
+      cart = [];
+    }
+
+    displayCheckout();
+  }
+
+  function displayCheckout() {
+    const checkoutContainer = document.getElementById("checkoutItems");
+    const totalPriceElement = document.getElementById("totalPrice");
+    checkoutContainer.innerHTML = "";
+    let total = 0;
+
+    if (cart.length === 0) {
+      checkoutContainer.innerHTML = "<p>Your cart is empty.</p>";
+      totalPriceElement.textContent = "";
+      return;
+    }
+
+    cart.forEach(item => {
+      const priceValue = parseInt(item.price.toString().replace(/[^0-9]/g, "")) || 0;
+      const itemTotal = priceValue * item.quantity;
+      total += itemTotal;
+
+      const itemDiv = document.createElement("div");
+      itemDiv.classList.add("cart-item");
+      itemDiv.innerHTML = `
+        <img src="${item.image}" alt="${item.name}">
+        <div class="cart-details">
+          <h4>${item.name}</h4>
+          <p>₦${priceValue.toLocaleString()} x ${item.quantity} = ₦${itemTotal.toLocaleString()}</p>
+        </div>
+      `;
+      checkoutContainer.appendChild(itemDiv);
+    });
+
+    totalPriceElement.textContent = "Total: ₦" + total.toLocaleString();
+  }
+document.getElementById("checkoutForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+
+  const fullName = document.getElementById("fullName").value.trim();
+  const address = document.getElementById("address").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const note = document.getElementById("note").value.trim();
+
+  if (!address || !fullName || !phone) {
+    alert("Please fill in all required fields.");
+    return;
+  }
+
+  if (cart.length === 0) {
+    alert("Your cart is empty.");
+    return;
+  }
+
+  const totalAmount = cart.reduce(
+    (sum, item) => sum + (parseInt(item.price.replace(/[^0-9]/g, "")) * item.quantity), 
+    0
+  );
+
+  try {
+    const orderRef = await addDoc(collection(db, "orders"), {
+      userId: currentUser.uid,
+      customer: currentUser.email,
+      fullName,
+      phone,
+      note,
+      items: cart,
+      total: totalAmount,
+      address: address,
+      createdAt: serverTimestamp(),
+      status: "pending",
+      paymentStatus: "unpaid"
+    });
+
+    var handler = PaystackPop.setup({
+      key: "pk_test_7f8cc8ac247998c0118b54a0f0ec1bf6d61ad78f",
+      email: currentUser.email,
+      amount: totalAmount * 100,
+      currency: "NGN",
+      ref: orderRef.id + "_" + Date.now(),
+      callback: function(response) {
+        alert("✅ Payment successful! Reference: " + response.reference);
+        handlePaymentSuccess(orderRef.id, response);
+      },
+      onClose: function() {
+        alert("❌ Payment window closed. Order not completed.");
+      }
+    });
+    handler.openIframe();
+
+  } catch (error) {
+    console.error("Error placing order:", error);
+    alert("❌ Failed to place order. Try again.");
+  }
+});
+async function handlePaymentSuccess(orderId, response) {
+  try {
+    await setDoc(doc(db, "orders", orderId), {
+      paymentStatus: "paid",
+      status: "confirmed",
+      paymentRef: response.reference
+    }, { merge: true });
+    await setDoc(doc(db, "carts", currentUser.uid), { items: [] });
+    window.location.href = "dashboard.html";
+  } catch (error) {
+    console.error("Error updating paid order:", error);
+    alert("⚠️ Payment was successful, but we couldn’t update the order.");
+  }
+}
+
+</script>
+
+</body>
+</html>
